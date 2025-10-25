@@ -185,6 +185,10 @@ io.on('connection', (socket) => {
     socket.join(conversationId);
   });
 
+  socket.on('chat message', (msg) => {
+    io.to(msg.conversationId).emit('chat message', msg);
+  });
+
   socket.on('disconnect', () => {
     console.log('user disconnected');
   });
