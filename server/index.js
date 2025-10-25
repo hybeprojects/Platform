@@ -194,6 +194,16 @@ io.on('connection', (socket) => {
   });
 });
 
-server.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
+app.post('/login', async (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required.' });
+  }
+
+  // TODO: Implement login logic
+
+  res.status(200).json({ message: 'Login successful.' });
 });
+
+module.exports = server;
