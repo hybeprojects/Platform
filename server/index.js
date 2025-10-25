@@ -6,7 +6,12 @@ const nodemailer = require('nodemailer');
 const bcrypt = require('bcryptjs');
 const db = require('./db');
 
+const { Server } = require("socket.io");
+const http = require('http');
+
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server);
 const port = process.env.PORT || 3000;
 
 // Redis client setup
@@ -75,6 +80,35 @@ app.post('/signup', async (req, res) => {
   }
 });
 
+app.post('/conversations', async (req, res) => {
+  const { userId, artistId } = req.body;
+
+  if (!userId || !artistId) {
+    return res.status(400).json({ error: 'userId and artistId are required.' });
+  }
+
+  try {
+    // Check if a conversation already exists
+    let conversation = await db.query(
+      'SELECT * FROM conversations WHERE user_id = $1 AND artist_id = $2',
+      [userId, artistId]
+    );
+
+    if (conversation.rows.length === 0) {
+      // If not, create a new one
+      conversation = await db.query(
+        'INSERT INTO conversations (user_id, artist_id) VALUES ($1, $2) RETURNING *',
+        [userId, artistId]
+      );
+    }
+
+    res.status(201).json(conversation.rows[0]);
+  } catch (error) {
+    console.error('Error creating or getting conversation:', error);
+    res.status(500).json({ error: 'An error occurred while managing the conversation.' });
+  }
+});
+
 app.post('/verify-otp', async (req, res) => {
   const { email, otp } = req.body;
 
@@ -106,6 +140,56 @@ app.post('/verify-otp', async (req, res) => {
   }
 });
 
-app.listen(port, () => {
+app.post('/messages', async (req, res) => {
+  const { conversationId, senderId, content } = req.body;
+
+  if (!conversationId || !senderId || !content) {
+    return res.status(400).json({ error: 'Missing required fields.' });
+  }
+
+  try {
+    const newMessage = await db.query(
+      'INSERT INTO messages (conversation_id, sender_id, content) VALUES ($1, $2, $3) RETURNING *',
+      [conversationId, senderId, content]
+    );
+
+    io.to(conversationId).emit('chat message', newMessage.rows[0]);
+
+    res.status(201).json({ message: 'Message sent successfully.' });
+  } catch (error) {
+    console.error('Error sending message:', error);
+    res.status(500).json({ error: 'An error occurred while sending the message.' });
+  }
+});
+
+app.get('/messages/:conversationId', async (req, res) => {
+  const { conversationId } = req.params;
+
+  try {
+    const messages = await db.query(
+      'SELECT * FROM messages WHERE conversation_id = $1 ORDER BY created_at ASC',
+      [conversationId]
+    );
+
+    res.status(200).json(messages.rows);
+  } catch (error) {
+    console.error('Error fetching messages:', error);
+    res.status(500).json({ error: 'An error occurred while fetching messages.' });
+  }
+});
+
+io.on('connection', (socket) => {
+  console.log('a user connected');
+
+  socket.on('join conversation', (conversationId) => {
+    socket.join(conversationId);
+  });
+
+  socket.on('disconnect', () => {
+    console.log('user disconnected');
+  });
+});
+
+server.listen(port, () => {
   console.log(`Server is running on port ${port}`);
 });
