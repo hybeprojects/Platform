@@ -60,7 +60,12 @@ class _OtpScreenState extends State<OtpScreen> {
                         _otpController.text,
                       );
                       if (response.statusCode == 200) {
-                        Navigator.pushNamedAndRemoveUntil(context, '/chat', (route) => false);
+                        Navigator.pushNamedAndRemoveUntil(
+                          context,
+                          '/chat',
+                          (route) => false,
+                          arguments: {'userId': 1, 'conversationId': 1}, // Example data
+                        );
                       } else {
                         // Handle error
                       }

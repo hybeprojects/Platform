@@ -1,0 +1,26 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "mobile/pubspec.yaml",
+      "use": "@vercel/flutter",
+      "config": {
+        "flutterBuild": "web"
+      }
+    },
+    {
+      "src": "server/index.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "server/index.js"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "mobile/build/web/$1"
+    }
+  ]
+}

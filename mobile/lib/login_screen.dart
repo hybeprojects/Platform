@@ -91,6 +91,16 @@ class _LoginScreenState extends State<LoginScreen> {
                     padding: EdgeInsets.symmetric(horizontal: 50, vertical: 15),
                   ),
                 ),
+                SizedBox(height: 16),
+                TextButton(
+                  onPressed: () {
+                    // TODO: Implement login
+                  },
+                  child: Text(
+                    'Already have an account? Log in',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
               ],
             ),
           ),
