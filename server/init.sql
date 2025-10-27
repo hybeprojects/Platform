@@ -1,9 +1,15 @@
+CREATE TABLE referral_codes (
+  id SERIAL PRIMARY KEY,
+  code VARCHAR(255) UNIQUE NOT NULL,
+  is_used BOOLEAN DEFAULT FALSE
+);
+
 CREATE TABLE users (
   id SERIAL PRIMARY KEY,
   full_name VARCHAR(255) NOT NULL,
   email VARCHAR(255) UNIQUE NOT NULL,
   password VARCHAR(255) NOT NULL,
-  referral_code VARCHAR(255) NOT NULL,
+  referral_code_id INTEGER REFERENCES referral_codes(id),
   is_verified BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
