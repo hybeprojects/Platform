@@ -36,9 +36,6 @@ const transporter = nodemailer.createTransport({
 
 app.use(bodyParser.json());
 
-// In-memory store for referral codes for now
-const validReferralCodes = ['HYBE123', 'BTSARMY', 'BORAHAE'];
-
 app.post('/signup', async (req, res) => {
   const { fullName, email, password, referralCode } = req.body;
 
@@ -46,16 +43,22 @@ app.post('/signup', async (req, res) => {
     return res.status(400).json({ error: 'All fields are required.' });
   }
 
-  if (!validReferralCodes.includes(referralCode)) {
-    return res.status(400).json({ error: 'Invalid referral code.' });
-  }
-
   try {
+    const referralCodeResult = await db.query('SELECT * FROM referral_codes WHERE code = $1 AND is_used = FALSE', [referralCode]);
+
+    if (referralCodeResult.rows.length === 0) {
+      return res.status(400).json({ error: 'Invalid or used referral code.' });
+    }
+
+    const referralCodeId = referralCodeResult.rows[0].id;
+
     const hashedPassword = await bcrypt.hash(password, 10);
     const newUser = await db.query(
-      'INSERT INTO users (full_name, email, password, referral_code) VALUES ($1, $2, $3, $4) RETURNING *',
-      [fullName, email, hashedPassword, referralCode]
+      'INSERT INTO users (full_name, email, password, referral_code_id) VALUES ($1, $2, $3, $4) RETURNING *',
+      [fullName, email, hashedPassword, referralCodeId]
     );
+
+    await db.query('UPDATE referral_codes SET is_used = TRUE WHERE id = $1', [referralCodeId]);
 
     // Generate OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -140,28 +143,6 @@ app.post('/verify-otp', async (req, res) => {
   }
 });
 
-app.post('/messages', async (req, res) => {
-  const { conversationId, senderId, content } = req.body;
-
-  if (!conversationId || !senderId || !content) {
-    return res.status(400).json({ error: 'Missing required fields.' });
-  }
-
-  try {
-    const newMessage = await db.query(
-      'INSERT INTO messages (conversation_id, sender_id, content) VALUES ($1, $2, $3) RETURNING *',
-      [conversationId, senderId, content]
-    );
-
-    io.to(conversationId).emit('chat message', newMessage.rows[0]);
-
-    res.status(201).json({ message: 'Message sent successfully.' });
-  } catch (error) {
-    console.error('Error sending message:', error);
-    res.status(500).json({ error: 'An error occurred while sending the message.' });
-  }
-});
-
 app.get('/messages/:conversationId', async (req, res) => {
   const { conversationId } = req.params;
 
@@ -178,21 +159,7 @@ app.get('/messages/:conversationId', async (req, res) => {
   }
 });
 
-io.on('connection', (socket) => {
-  console.log('a user connected');
-
-  socket.on('join conversation', (conversationId) => {
-    socket.join(conversationId);
-  });
-
-  socket.on('chat message', (msg) => {
-    io.to(msg.conversationId).emit('chat message', msg);
-  });
-
-  socket.on('disconnect', () => {
-    console.log('user disconnected');
-  });
-});
+require('./messaging_service')(io);
 
 app.post('/login', async (req, res) => {
   const { email, password } = req.body;
@@ -201,9 +168,24 @@ app.post('/login', async (req, res) => {
     return res.status(400).json({ error: 'Email and password are required.' });
   }
 
-  // TODO: Implement login logic
+  try {
+    const user = await db.query('SELECT * FROM users WHERE email = $1', [email]);
 
-  res.status(200).json({ message: 'Login successful.' });
+    if (user.rows.length === 0) {
+      return res.status(400).json({ error: 'Invalid email or password.' });
+    }
+
+    const isPasswordValid = await bcrypt.compare(password, user.rows[0].password);
+
+    if (!isPasswordValid) {
+      return res.status(400).json({ error: 'Invalid email or password.' });
+    }
+
+    res.status(200).json({ message: 'Login successful.', userId: user.rows[0].id });
+  } catch (error) {
+    console.error('Error during login:', error);
+    res.status(500).json({ error: 'An error occurred during login.' });
+  }
 });
 
 module.exports = server;

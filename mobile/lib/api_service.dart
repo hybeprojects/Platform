@@ -44,4 +44,26 @@ class ApiService {
       }),
     );
   }
+
+  Future<List<Map<String, dynamic>>> getMessages(int conversationId) async {
+    final response = await http.get(Uri.parse('$baseUrl/messages/$conversationId'));
+    if (response.statusCode == 200) {
+      return List<Map<String, dynamic>>.from(jsonDecode(response.body));
+    } else {
+      throw Exception('Failed to load messages');
+    }
+  }
+
+  Future<http.Response> createConversation(int userId, int artistId) {
+    return http.post(
+      Uri.parse('$baseUrl/conversations'),
+      headers: <String, String>{
+        'Content-Type': 'application/json; charset=UTF-8',
+      },
+      body: jsonEncode(<String, int>{
+        'userId': userId,
+        'artistId': artistId,
+      }),
+    );
+  }
 }

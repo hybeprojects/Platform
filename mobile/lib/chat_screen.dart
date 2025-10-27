@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:socket_io_client/socket_io_client.dart' as IO;
-
-import 'package:flutter/material.dart';
+import 'package:hybe_celebrity_connect/api_service.dart';
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 
 class ChatScreen extends StatefulWidget {
@@ -15,12 +13,16 @@ class ChatScreen extends StatefulWidget {
 
 class _ChatScreenState extends State<ChatScreen> {
   final _messageController = TextEditingController();
+  final _apiService = ApiService();
   late IO.Socket socket;
   List<Map<String, dynamic>> messages = [];
+
+  late Future<List<Map<String, dynamic>>> _messagesFuture;
 
   @override
   void initState() {
     super.initState();
+    _messagesFuture = _apiService.getMessages(widget.conversationId);
     initSocket();
   }
 
@@ -59,14 +61,26 @@ class _ChatScreenState extends State<ChatScreen> {
       body: Column(
         children: [
           Expanded(
-            child: ListView.builder(
-              itemCount: messages.length,
-              itemBuilder: (context, index) {
-                final message = messages[index];
-                return _buildMessage(
-                  text: message['content'],
-                  isMe: message['senderId'] == widget.userId,
-                );
+            child: FutureBuilder<List<Map<String, dynamic>>>(
+              future: _messagesFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return Center(child: CircularProgressIndicator());
+                } else if (snapshot.hasError) {
+                  return Center(child: Text('Error: ${snapshot.error}'));
+                } else {
+                  messages = snapshot.data!;
+                  return ListView.builder(
+                    itemCount: messages.length,
+                    itemBuilder: (context, index) {
+                      final message = messages[index];
+                      return _buildMessage(
+                        text: message['content'],
+                        isMe: message['sender_id'] == widget.userId,
+                      );
+                    },
+                  );
+                }
               },
             ),
           ),
